@@ -38,21 +38,27 @@ IF NOT EXIST tables.txt (
 )
 
 REM ---------------------------------------------------------------------------
-REM 4) Loop through each table and export it to a CSV file
+REM 4) Loop through each table and export its data to a CSV file
 REM ---------------------------------------------------------------------------
 for /f "delims=" %%i in (tables.txt) do (
     set TABLENAME=%%i
+    REM Extract schema and table name separately
+    for /f "tokens=1,2 delims=." %%a in ("%%i") do (
+        set SCHEMA=%%a
+        set TABLE=%%b
+    )
+    
     REM Replace dots (.) in table names with underscores (_) for filenames
-    set FILENAME=!TABLENAME:.=_!
+    set FILENAME=!SCHEMA!_!TABLE!
 
-    echo Exporting table [%%i] to CSV...
-    REM Export the table data using bcp (no database prefix in the table name)
-    bcp "SELECT * FROM [%%i]" queryout "%OUTPUT_DIR%\!FILENAME!.csv" -S %SQLSERVER% -T -c -t, 
+    REM Export data from the table (without the database prefix)
+    echo Exporting data from table [!SCHEMA!.!TABLE!] to CSV...
+    bcp "SELECT * FROM [%DATABASE%].[!SCHEMA!.!TABLE!]" queryout "%OUTPUT_DIR%\!FILENAME!.csv" -S %SQLSERVER% -T -c -t,
 
     IF %ERRORLEVEL% NEQ 0 (
-        echo ERROR: Failed to export table %%i
+        echo ERROR: Failed to export data from !SCHEMA!.!TABLE!
     ) ELSE (
-        echo Successfully exported %%i to !FILENAME!.csv
+        echo Successfully exported data from !SCHEMA!.!TABLE! to !FILENAME!.csv
     )
 )
 
@@ -60,7 +66,7 @@ REM ---------------------------------------------------------------------------
 REM 5) Cleanup and exit
 REM ---------------------------------------------------------------------------
 echo.
-echo All tables exported successfully!
+echo All tables data exported successfully!
 echo Check the CSV files in: %OUTPUT_DIR%
 pause
 exit /b 0
