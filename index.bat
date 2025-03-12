@@ -46,7 +46,8 @@ for /f "delims=" %%i in (tables.txt) do (
     set FILENAME=!TABLENAME:.=_!
 
     echo Exporting table [%%i] to CSV...
-    bcp "SELECT * FROM [%DATABASE%].[%%i]" queryout "%OUTPUT_DIR%\!FILENAME!.csv" -S %SQLSERVER% -T -c -t, 
+    REM Export the table data using bcp (no database prefix in the table name)
+    bcp "SELECT * FROM [%%i]" queryout "%OUTPUT_DIR%\!FILENAME!.csv" -S %SQLSERVER% -T -c -t, 
 
     IF %ERRORLEVEL% NEQ 0 (
         echo ERROR: Failed to export table %%i
