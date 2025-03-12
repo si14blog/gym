@@ -47,13 +47,19 @@ for /f "delims=" %%i in (tables.txt) do (
         set SCHEMA=%%a
         set TABLE=%%b
     )
-    
+
+    REM Make sure the table name is valid before continuing
+    if "!TABLE!"=="" (
+        echo ERROR: Invalid table name encountered: %%i
+        continue
+    )
+
     REM Replace dots (.) in table names with underscores (_) for filenames
     set FILENAME=!SCHEMA!_!TABLE!
 
     REM Export data from the table (without the database prefix)
     echo Exporting data from table [!SCHEMA!.!TABLE!] to CSV...
-    bcp "SELECT * FROM [%DATABASE%].[!SCHEMA!.!TABLE!]" queryout "%OUTPUT_DIR%\!FILENAME!.csv" -S %SQLSERVER% -T -c -t,
+    bcp "SELECT * FROM !SCHEMA!.!TABLE!" queryout "%OUTPUT_DIR%\!FILENAME!.csv" -S %SQLSERVER% -T -c -t,
 
     IF %ERRORLEVEL% NEQ 0 (
         echo ERROR: Failed to export data from !SCHEMA!.!TABLE!
