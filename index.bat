@@ -1,37 +1,57 @@
 @echo off
+setlocal enabledelayedexpansion
 
 REM ---------------------------------------------------------------------------
-REM 1) Use sqlcmd to get all table names from the SQL Server database.
-REM    -S .\SQL2022 => connect to local instance named SQL2022
-REM    -E          => use Windows Authentication
-REM    -d gym      => connect to the 'gym' database
+REM 1) Define SQL Server instance and database name
 REM ---------------------------------------------------------------------------
-echo Retrieving table names from SQL Server...
-sqlcmd -S .\SQL2022 -E -d gym -h -1 -W -Q "SELECT TABLE_NAME 
-    FROM INFORMATION_SCHEMA.TABLES 
-    WHERE TABLE_TYPE='BASE TABLE'" > tables.txt
+set SQLSERVER=.\SQL2022
+set DATABASE=Nucro_DB
+set OUTPUT_DIR=%CD%
 
 REM ---------------------------------------------------------------------------
-REM 2) Loop over each table name in tables.txt, export the data via bcp to CSV.
-REM    - We create CSV files named <TableName>.csv in the current directory.
+REM 2) Test SQL Server Connection
 REM ---------------------------------------------------------------------------
-for /f "skip=0 delims=" %%i in (tables.txt) do (
-    echo -----------------------------------------------------------
-    echo Exporting table [%%i] to CSV...
-    
-    REM Export table to CSV using bcp:
-    REM   - queryout => run a SELECT * and output to file
-    REM   - -c => character data type
-    REM   -t, => use comma as field terminator
-    REM   -T => use trusted connection (Windows Auth)
-    bcp "SELECT * FROM [gym].[dbo].[%%i]" queryout "%%i.csv" -S .\SQL2022 -T -c -t,
+echo Testing connection to %SQLSERVER%...
+sqlcmd -S %SQLSERVER% -E -Q "SELECT name FROM sys.databases;" >nul 2>&1
+IF %ERRORLEVEL% NEQ 0 (
+    echo ERROR: Failed to connect to SQL Server or insufficient permissions!
+    echo Make sure your Windows user has access to %DATABASE%.
+    pause
+    exit /b 1
+)
 
-    echo Done with table [%%i].
+echo Connection successful!
+
+REM ---------------------------------------------------------------------------
+REM 3) Get all table names (including schema) and save to tables.txt
+REM ---------------------------------------------------------------------------
+echo Retrieving table names from %DATABASE%...
+sqlcmd -S %SQLSERVER% -E -d %DATABASE% -h -1 -W -Q "SELECT TABLE_SCHEMA + '.' + TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE='BASE TABLE'" > tables.txt
+
+IF NOT EXIST tables.txt (
+    echo ERROR: Failed to retrieve table names!
+    pause
+    exit /b 1
 )
 
 REM ---------------------------------------------------------------------------
-REM 3) Cleanup or final messages
+REM 4) Loop through each table and export to CSV
 REM ---------------------------------------------------------------------------
+for /f "delims=" %%i in (tables.txt) do (
+    set TABLENAME=%%i
+    set TABLENAME=!TABLENAME:.=_!
+
+    echo Exporting table [%%i] to CSV...
+    bcp "SELECT * FROM [%DATABASE%].%%i" queryout "%OUTPUT_DIR%\!TABLENAME!.csv" -S %SQLSERVER% -T -c -t, 
+
+    IF %ERRORLEVEL% NEQ 0 (
+        echo ERROR: Failed to export table %%i
+    ) ELSE (
+        echo Successfully exported %%i to !TABLENAME!.csv
+    )
+)
+
 echo.
-echo All tables exported to CSV files!
-echo Check the current folder for <TableName>.csv files.
+echo All tables exported successfully!
+pause
+exit /b 0
